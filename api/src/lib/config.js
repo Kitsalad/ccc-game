@@ -8,7 +8,7 @@ module.exports = {
   },
   TOKINS: {
     network: 'polygon-mainnet',
-    address: '' // NFTokins on Polygon — TODO: fill in from OpenSea
+    address: '0x58530e43b89234fe08fd20ed06ef536233b6dd69' // NFTokins, Polygon
   },
 
   // Game week runs Mon 12am – Sun 11:59pm in this zone.
