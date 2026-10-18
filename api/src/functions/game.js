@@ -34,6 +34,37 @@ app.http('nfts', {
 
 const isId = (v) => typeof v === 'string' && /^\d{1,10}$/.test(v);
 
+// Toker and Tokins must not already be in someone else's entry that week.
+async function assertFree(c, week, tokerId, tokinIds) {
+  const taken = await query(
+    c.entries,
+    'SELECT c.tokerId, c.tokinIds FROM c WHERE c.week = @week AND (c.tokerId = @tokerId OR ARRAY_LENGTH(SetIntersect(c.tokinIds, @tokinIds)) > 0)',
+    { week, tokerId, tokinIds }
+  );
+  if (taken.some((e) => e.tokerId === tokerId)) throw new HttpError(409, `Toker #${tokerId} is already entered that week.`);
+  if (taken.length) throw new HttpError(409, 'One of those Tokins is already entered that week.');
+}
+
+// POC only: move next week's entry into the running week so it can be tested now.
+app.http('moveEntryToCurrent', {
+  route: 'entries/move-to-current',
+  methods: ['POST'],
+  authLevel: 'anonymous',
+  handler: handler(async ({ wallet }) => {
+    if (!ALLOW_CURRENT_WEEK_ENTRY) throw new HttpError(403, 'Test mode is off.');
+    const c = await db();
+    const week = weekId();
+    if (await entryFor(wallet, week)) throw new HttpError(409, 'You already have a grow running this week.');
+    const e = await entryFor(wallet, nextWeekId());
+    if (!e) throw new HttpError(400, "You don't have an entry for next week.");
+    await assertFree(c, week, e.tokerId, e.tokinIds);
+    const { _rid, _self, _etag, _attachments, _ts, ...rest } = e;
+    await c.entries.items.create({ ...rest, id: crypto.randomUUID(), week, movedFrom: e.week });
+    await c.entries.item(e.id, e.week).delete();
+    return stateFor(wallet);
+  })
+});
+
 // Enter 1 Toker + up to 3 Tokins for a game week.
 app.http('enter', {
   route: 'entries',
@@ -59,13 +90,7 @@ app.http('enter', {
     const week = body.week === 'current' && ALLOW_CURRENT_WEEK_ENTRY ? weekId() : nextWeekId();
     if (await entryFor(wallet, week)) throw new HttpError(409, 'This wallet already has an entry for that week.');
 
-    const taken = await query(
-      c.entries,
-      'SELECT c.tokerId, c.tokinIds FROM c WHERE c.week = @week AND (c.tokerId = @tokerId OR ARRAY_LENGTH(SetIntersect(c.tokinIds, @tokinIds)) > 0)',
-      { week, tokerId, tokinIds }
-    );
-    if (taken.some((e) => e.tokerId === tokerId)) throw new HttpError(409, `Toker #${tokerId} is already entered this week.`);
-    if (taken.length) throw new HttpError(409, 'One of those Tokins is already entered this week.');
+    await assertFree(c, week, tokerId, tokinIds);
 
     // A Tokin can never grow with the same Toker twice.
     for (const t of tokinIds) {

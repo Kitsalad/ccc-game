@@ -15,6 +15,17 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '
 const short = (a) => (a ? a.slice(0, 6) + '…' + a.slice(-4) : '');
 const fmtWeek = (iso) => new Date(iso + 'T12:00:00Z').toLocaleDateString('en-AU', { day: 'numeric', month: 'short', timeZone: 'UTC' });
 
+// Monday 12am US Eastern for a week id, shown in the viewer's own time.
+function startLocal(week) {
+  const [y, m, d] = week.split('-').map(Number);
+  for (const off of [4, 5]) {
+    const t = new Date(Date.UTC(y, m - 1, d, off));
+    const h = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', hourCycle: 'h23' }).format(t);
+    if (+h === 0) return t.toLocaleString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
+  }
+  return 'Monday';
+}
+
 let toastTimer;
 function toast(msg, bad = false) {
   $toast.textContent = msg;
@@ -111,8 +122,8 @@ async function entryForm(state) {
   const tz = state.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
   const weekPick = ALLOW_CURRENT_WEEK_ENTRY
     ? `<div class="seg">
-        <label><input type="radio" name="week" value="next" checked> Next week (from ${fmtWeek(state.nextWeek)})</label>
-        <label><input type="radio" name="week" value="current"> This week — test mode</label>
+        <label><input type="radio" name="week" value="current" checked> This week — test mode</label>
+        <label><input type="radio" name="week" value="next"> Next week (from ${fmtWeek(state.nextWeek)})</label>
       </div>`
     : '';
 
@@ -167,8 +178,22 @@ function grow(s) {
       <section class="card">
         <h2>You're in for the week of ${fmtWeek(s.nextEntry.week)}</h2>
         <p>Toker <b>#${esc(s.nextEntry.tokerId)}</b> with Tokins ${s.nextEntry.tokinIds.map((t) => `<b>#${esc(t)}</b>`).join(', ')}.</p>
-        <p>The grow starts Monday 12am US Eastern. Check-ins run on your time (${esc(s.timezone)}).</p>
+        <p>The grow starts Monday 12am US Eastern — that's <b>${esc(startLocal(s.nextEntry.week))}</b> your time.
+        Check-ins run on your time (${esc(s.timezone)}).</p>
+        ${ALLOW_CURRENT_WEEK_ENTRY ? `<button class="btn" id="move">Start it now (test mode)</button>
+        <p class="fine">Moves this entry into the week that's already running so you can try check-ins today.</p>` : ''}
       </section>`;
+    const mv = document.getElementById('move');
+    if (mv) mv.onclick = async () => {
+      busy(mv, true);
+      try {
+        grow(await api('/entries/move-to-current', { method: 'POST' }));
+        toast('Grow started. 🌱');
+      } catch (err) {
+        toast(err.message, true);
+        busy(mv, false);
+      }
+    };
     return;
   }
 

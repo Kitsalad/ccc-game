@@ -11,6 +11,13 @@ module.exports = {
     address: '0x58530e43b89234fe08fd20ed06ef536233b6dd69' // NFTokins, Polygon
   },
 
+  // Sites allowed to sign players in (add the custom domain here when it's set up).
+  ALLOWED_ORIGINS: [
+    'https://delightful-grass-0da47910f.5.azurestaticapps.net',
+    'http://localhost:5173',
+    'http://localhost:4173'
+  ],
+
   // Game week runs Mon 12am – Sun 11:59pm in this zone.
   GAME_TZ: 'America/New_York',
 
