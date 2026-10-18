@@ -1,0 +1,14 @@
+{
+  "name": "ccc-game-api",
+  "version": "0.1.0",
+  "private": true,
+  "main": "src/functions/*.js",
+  "scripts": {
+    "test": "node test/time.test.js"
+  },
+  "dependencies": {
+    "@azure/cosmos": "^4.1.1",
+    "@azure/functions": "^4.5.1",
+    "ethers": "^6.13.4"
+  }
+}
