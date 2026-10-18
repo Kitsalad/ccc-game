@@ -18,8 +18,7 @@ Weekly grow competition for Crypto Cannabis Club holders: 1 Toker + up to 3 Toki
 Function App settings `COSMOS_CONN`, `ALCHEMY_KEY`, `OPENSEA_KEY` are Key Vault references.
 
 ## GitHub secrets
-- `AZURE_STATIC_WEB_APPS_API_TOKEN`
-- `AZURE_FUNCTIONAPP_PUBLISH_PROFILE`
+- `AZURE_CREDENTIALS` — service principal `ccc-game-github` (Contributor on ccc-game-rg), used by both workflows
 
 ## Build 1 (Oct 2026)
 Wallet sign-in (signed message, no gas), Toker/Tokin ownership check via Alchemy, entry rules

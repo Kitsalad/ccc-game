@@ -17,9 +17,18 @@ jobs:
       - name: Build
         working-directory: web
         run: npm ci && npm run build
+      - uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+      - name: Get deploy token
+        id: swa
+        run: |
+          T=$(az staticwebapp secrets list -n ccc-game-web -g ccc-game-rg --query properties.apiKey -o tsv)
+          echo "::add-mask::$T"
+          echo "token=$T" >> "$GITHUB_OUTPUT"
       - uses: Azure/static-web-apps-deploy@v1
         with:
-          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
+          azure_static_web_apps_api_token: ${{ steps.swa.outputs.token }}
           action: upload
           app_location: web/dist
           skip_app_build: true
