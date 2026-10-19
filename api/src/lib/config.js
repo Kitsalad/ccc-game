@@ -21,8 +21,16 @@ module.exports = {
   // Game week runs Mon 12am – Sun 11:59pm in this zone.
   GAME_TZ: 'America/New_York',
 
-  // Entry limits (v1.3 rules).
-  MAX_TOKINS_PER_ENTRY: 3,
+  // Entry limits. Was 3 under v1.3; 1 Tokin per week from build 2.
+  MAX_TOKINS_PER_ENTRY: 1,
+
+  // Plant tuning (until Toker traits drive these).
+  PLANT: {
+    waterStock: 35, // weekly water units (dose 1–5 each time)
+    feedStock: 20, // weekly feed units
+    pestChance: 0.1, // per 6 hours
+    hoverChance: 0.3 // chance a day visit stresses the plant
+  },
 
   // POC only: lets you enter the week that's already running so you can test
   // check-ins straight away. Set to false before going live.

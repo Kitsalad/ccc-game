@@ -1,5 +1,6 @@
 import { BrowserProvider } from 'ethers';
-import { API, ALLOW_CURRENT_WEEK_ENTRY, MAX_TOKINS } from './config.js';
+import { API, ALLOW_CURRENT_WEEK_ENTRY } from './config.js';
+import { sceneSVG } from './scene.js';
 import './style.css';
 
 const $app = document.getElementById('app');
@@ -42,7 +43,7 @@ async function api(path, { method = 'GET', body } = {}) {
     body: body ? JSON.stringify(body) : undefined
   });
   const j = await r.json().catch(() => ({}));
-  if (r.status === 401) {
+  if (r.status === 401 && token) {
     store.set('ccc.token', null);
     render();
   }
@@ -90,74 +91,83 @@ function landing() {
   $who.innerHTML = '';
   $app.innerHTML = `
     <section class="hero">
-      <h1>Grow week starts Monday.</h1>
-      <p>Pair your Toker with up to ${MAX_TOKINS} Tokins, check in morning and evening, and grow a winner.
+      <h1>Tokin <span>Grow Week</span></h1>
+      <p>Pair your Toker with a Tokin, tend the grow morning and evening, and read the plant.
       Category winners mint a brand-new Tokin.</p>
-      <button class="btn big" id="connect">Connect wallet</button>
-      <p class="fine">Signing in just proves you own the wallet. No gas, no transactions.</p>
+      <button class="btn primary big" id="connect">Connect wallet</button>
+      <p class="fine">Signing in just proves you own the wallet. No gas, no transactions, no approvals.</p>
     </section>`;
   document.getElementById('connect').onclick = (e) => signIn(e.currentTarget);
 }
 
-function nftCard(n, kind, name, type) {
+function nftCard(n, kind, name) {
   const img = n.image ? `<img src="${esc(n.image)}" alt="" loading="lazy" onerror="this.remove()">` : '';
   return `<label class="nft">
-    <input type="${type}" name="${name}" value="${esc(n.id)}">
+    <input type="radio" name="${name}" value="${esc(n.id)}">
     <span class="pic">${img}<span class="ph">${kind}</span></span>
     <span class="nm">${esc(n.name)}</span>
   </label>`;
 }
 
+function lastWeekCard(s) {
+  const l = s.lastWeek;
+  if (!l) return '';
+  return `<div class="card last">
+    <h2>Last week's grow is done</h2>
+    <p>Toker <b>#${esc(l.tokerId)}</b> + Tokin <b>#${esc(l.tokinIds[0])}</b> finished on <b>${l.care}</b> care points
+    from ${l.checkins} check-ins. Results and harvest come in a later build.</p>
+    <p class="fine">A new game week started ${esc(startLocal(s.week))} your time. Plant a new grow below.</p>
+  </div>`;
+}
+
 async function entryForm(state) {
-  $app.innerHTML = `<section class="card"><h2>Loading your Tokers and Tokins…</h2></section>`;
+  $app.innerHTML = `${lastWeekCard(state)}<div class="card"><h2>Loading your Tokers and Tokins…</h2></div>`;
   let nfts;
   try {
     nfts = await api('/nfts');
   } catch (e) {
-    $app.innerHTML = `<section class="card"><h2>Couldn't load your NFTs</h2><p>${esc(e.message)}</p>
-      <button class="btn" id="retry">Try again</button></section>`;
+    $app.innerHTML = `${lastWeekCard(state)}<div class="card"><h2>Couldn't load your NFTs</h2><p>${esc(e.message)}</p>
+      <button class="btn" id="retry">Try again</button></div>`;
     document.getElementById('retry').onclick = () => render();
     return;
   }
   const tz = state.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
   const weekPick = ALLOW_CURRENT_WEEK_ENTRY
     ? `<div class="seg">
-        <label><input type="radio" name="week" value="current" checked> This week — test mode</label>
+        <label><input type="radio" name="week" value="current" checked> This week (test mode)</label>
         <label><input type="radio" name="week" value="next"> Next week (from ${fmtWeek(state.nextWeek)})</label>
       </div>`
     : '';
 
   $app.innerHTML = `
-    <section class="card">
-      <h2>Set up your grow</h2>
-      ${weekPick}
-      <h3>1. Pick your Toker <span class="muted">(${nfts.tokers.length} in this wallet)</span></h3>
-      <div class="grid">${nfts.tokers.map((n) => nftCard(n, 'Toker', 'toker', 'radio')).join('') || '<p class="muted">No Tokers in this wallet.</p>'}</div>
-      <h3>2. Pick up to ${MAX_TOKINS} Tokins <span class="muted">(${nfts.tokins.length} in this wallet)</span></h3>
-      <div class="grid">${nfts.tokins.map((n) => nftCard(n, 'Tokin', 'tokin', 'checkbox')).join('') || '<p class="muted">No Tokins in this wallet.</p>'}</div>
-      <p class="fine">Your check-in times use <b>${esc(tz)}</b>${state.timezone ? '' : ' — this locks in on your first entry'}.
-      A Tokin can only ever grow once with the same Toker.</p>
-      <button class="btn big" id="enter">Plant it</button>
-    </section>`;
-
-  $app.querySelectorAll('input[name=tokin]').forEach((cb) =>
-    cb.addEventListener('change', () => {
-      const on = $app.querySelectorAll('input[name=tokin]:checked');
-      if (on.length > MAX_TOKINS) { cb.checked = false; toast(`Max ${MAX_TOKINS} Tokins.`, true); }
-    })
-  );
+    ${lastWeekCard(state)}
+    <div class="card">
+      <h2>1 · Enter your Toker <span class="muted">(${nfts.tokers.length} in this wallet)</span></h2>
+      <div class="grid">${nfts.tokers.map((n) => nftCard(n, 'Toker', 'toker')).join('') || '<p class="muted">No Tokers in this wallet.</p>'}</div>
+    </div>
+    <div class="card">
+      <h2>2 · Pair one Tokin <span class="muted">(${nfts.tokins.length} in this wallet · never the same pairing twice)</span></h2>
+      <div class="grid">${nfts.tokins.map((n) => nftCard(n, 'Tokin', 'tokin')).join('') || '<p class="muted">No Tokins in this wallet.</p>'}</div>
+    </div>
+    <div class="card row between">
+      <div>
+        ${weekPick}
+        <p class="fine">Check-in times use <b>${esc(tz)}</b>${state.timezone ? '' : ' (locks in on your first entry)'}.</p>
+      </div>
+      <button class="btn primary big" id="enter">Plant it ›</button>
+    </div>`;
 
   document.getElementById('enter').onclick = async (e) => {
     const toker = $app.querySelector('input[name=toker]:checked')?.value;
-    const tokins = [...$app.querySelectorAll('input[name=tokin]:checked')].map((x) => x.value);
+    const tokin = $app.querySelector('input[name=tokin]:checked')?.value;
     const week = $app.querySelector('input[name=week]:checked')?.value || 'next';
     if (!toker) return toast('Pick a Toker first.', true);
-    if (!tokins.length) return toast('Pick at least one Tokin.', true);
+    if (!tokin) return toast('Pick a Tokin.', true);
     busy(e.currentTarget, true, 'Checking ownership…');
     try {
-      const s = await api('/entries', { method: 'POST', body: { tokerId: toker, tokinIds: tokins, timezone: tz, week } });
+      await api('/entries', { method: 'POST', body: { tokerId: toker, tokinIds: [tokin], timezone: tz, week } });
       toast('Planted. 🌱');
-      grow(s);
+      render();
     } catch (err) {
       toast(err.message, true);
       busy(e.currentTarget, false);
@@ -165,100 +175,162 @@ async function entryForm(state) {
   };
 }
 
-const WIN = {
-  morning: { label: 'Morning check-in', hours: '5–11am', pts: 6, icon: '☀️' },
-  day: { label: 'Day check-in', hours: '11am–5pm', pts: 0, icon: '🔍' },
-  evening: { label: 'Evening check-in', hours: '5–11pm', pts: 4, icon: '🌙' }
-};
-
-function grow(s) {
-  const e = s.entry;
-  if (!e) {
-    $app.innerHTML = `
-      <section class="card">
-        <h2>You're in for the week of ${fmtWeek(s.nextEntry.week)}</h2>
-        <p>Toker <b>#${esc(s.nextEntry.tokerId)}</b> with Tokins ${s.nextEntry.tokinIds.map((t) => `<b>#${esc(t)}</b>`).join(', ')}.</p>
-        <p>The grow starts Monday 12am US Eastern — that's <b>${esc(startLocal(s.nextEntry.week))}</b> your time.
-        Check-ins run on your time (${esc(s.timezone)}).</p>
-        ${ALLOW_CURRENT_WEEK_ENTRY ? `<button class="btn" id="move">Start it now (test mode)</button>
-        <p class="fine">Moves this entry into the week that's already running so you can try check-ins today.</p>` : ''}
-      </section>`;
-    const mv = document.getElementById('move');
-    if (mv) mv.onclick = async () => {
-      busy(mv, true);
-      try {
-        grow(await api('/entries/move-to-current', { method: 'POST' }));
-        toast('Grow started. 🌱');
-      } catch (err) {
-        toast(err.message, true);
-        busy(mv, false);
-      }
-    };
-    return;
-  }
-
-  const now = s.now?.window;
-  const byDate = {};
-  for (const c of s.checkins) (byDate[c.localDate] ||= []).push(c.window);
-  const days = Object.keys(byDate).sort();
-  const pct = Math.round((s.care.points / s.care.max) * 100);
-
+function booked(s) {
+  const e = s.nextEntry;
   $app.innerHTML = `
-    <section class="card">
-      <div class="row">
-        <div>
-          <h2>Day ${s.gameDay} of 7</h2>
-          <p class="muted">Week of ${fmtWeek(e.week)} · Toker #${esc(e.tokerId)} · Tokins ${e.tokinIds.map((t) => '#' + esc(t)).join(', ')}</p>
-        </div>
-        <div class="score"><b>${s.care.points}</b><span>/ ${s.care.max} care</span></div>
-      </div>
-      <div class="bar"><i style="width:${pct}%"></i></div>
-
-      <div class="now ${now ? '' : 'off'}">
-        ${now ? `<span>${WIN[now].icon} ${WIN[now].label} is open (${WIN[now].hours} your time)</span>
-                 <button class="btn" id="checkin">Check in${WIN[now].pts ? ` +${WIN[now].pts}` : ''}</button>`
-              : `<span>💤 Lights out. Check-ins open 5am your time.</span>`}
-      </div>
-
-      <div class="tally">
-        <div>☀️ Mornings <b>${s.care.mornings}/7</b></div>
-        <div>🌙 Evenings <b>${s.care.evenings}/7</b></div>
-        <div>🔍 Day visits <b>${s.care.dayCheckins}</b></div>
-      </div>
-      ${days.length ? `<ul class="log">${days.map((d) => `<li><span>${d}</span>${byDate[d].map((w) => WIN[w].icon).join(' ')}</li>`).join('')}</ul>` : ''}
-      <p class="fine">Day visits are recorded but don't score yet — reading the plant (pests, talking) comes in the next build.</p>
-    </section>`;
-
-  const btn = document.getElementById('checkin');
-  if (btn) btn.onclick = async () => {
-    busy(btn, true);
+    ${lastWeekCard(s)}
+    <div class="card">
+      <h2>You're in for the week of ${fmtWeek(e.week)}</h2>
+      <p>Toker <b>#${esc(e.tokerId)}</b> with Tokin <b>#${esc(e.tokinIds[0])}</b>.</p>
+      <p>The grow starts Monday 12am US Eastern, which is <b>${esc(startLocal(e.week))}</b> your time.</p>
+      ${ALLOW_CURRENT_WEEK_ENTRY ? `<button class="btn primary" id="move">Start it now (test mode)</button>` : ''}
+    </div>`;
+  const mv = document.getElementById('move');
+  if (mv) mv.onclick = async () => {
+    busy(mv, true);
     try {
-      grow(await api('/checkins', { method: 'POST' }));
-      toast('Checked in. Your plants say thanks. 🌿');
+      await api('/entries/move-to-current', { method: 'POST' });
+      toast('Grow started. 🌱');
+      render();
     } catch (err) {
       toast(err.message, true);
-      busy(btn, false);
+      busy(mv, false);
     }
   };
+}
+
+// ---------- the grow room ----------
+const WIN = {
+  morning: { label: 'Morning check-in', hours: '5–11am', tasks: ['Water', 'Feed', 'Pest check', 'Talk'] },
+  day: { label: 'Day visit (optional)', hours: '11am–5pm', tasks: ['Pest check', 'Talk'] },
+  evening: { label: 'Evening check-in', hours: '5–11pm', tasks: ['Lights', 'Light feed', 'Water', 'Pest check', 'Talk'] }
+};
+let draft, pending, S;
+const blank = () => ({ water: 0, feed: 0, pest: false, talk: false, lights: null });
+
+function grow(s) {
+  S = s;
+  const g = s.grow, e = s.entry, win = s.now?.window || null;
+  const open = !!win && !g.done;
+  if (!draft) draft = blank();
+
+  const word = (w) => `<span class="lvl ${w.toLowerCase()}">${w}</span>`;
+  const task = (t) => {
+    const done = { Water: draft.water > 0, Feed: draft.feed > 0, 'Light feed': draft.feed > 0, 'Pest check': draft.pest, Talk: draft.talk, Lights: !!draft.lights }[t];
+    return `<span class="${done ? 'ok' : ''}">${t}${t === 'Water' && draft.water ? ' ' + draft.water : ''}${(t === 'Feed' || t === 'Light feed') && draft.feed ? ' ' + draft.feed : ''}</span>`;
+  };
+  const doseRow = pending
+    ? `<div class="dose"><b>${pending === 'water' ? 'Water' : 'Feed'} dose</b>${[1, 2, 3, 4, 5]
+        .map((d) => `<button class="btn sq ${draft[pending] === d ? 'primary' : ''}" data-dose="${d}" ${g.stock[pending] < d ? 'disabled' : ''}>${d}</button>`)
+        .join('')}<button class="btn" data-dose="0">None</button></div>`
+    : '';
+
+  let status;
+  if (!win) status = `💤 Lights out. Check-ins open 5am your time (${esc(s.timezone)}).`;
+  else if (g.done) status = win === 'day' ? `You've done your day visits. Evening check-in opens 5pm.` : `${WIN[win].label} done. ${win === 'morning' ? 'Day visits open 11am, evening 5pm.' : 'Back in the morning from 5am.'}`;
+  else status = `${WIN[win].label} is open (${WIN[win].hours} your time). Use the tools in the tent, then hit <b>End check-in</b>.`;
+
+  $who.innerHTML = `<span>${short(s.wallet)}</span> <button class="link" id="out">Sign out</button>`;
+  document.getElementById('out').onclick = signOut;
+
+  $app.innerHTML = `
+    <div class="hud">
+      <span class="chip"><b>Day</b>${g.day}/7</span>
+      <span class="chip ${open ? 'hot' : ''}">${win ? WIN[win].label.replace(' (optional)', '') : 'Lights out'}</span>
+      <span class="chip"><b>Stage</b>${g.stage}</span>
+      <span class="chip"><b>Water</b>${g.stock.water}</span>
+      <span class="chip"><b>Feed</b>${g.stock.feed}</span>
+      <span class="chip hot"><b>Care</b>${g.care}/100</span>
+    </div>
+    <div class="scene"><svg id="svg" viewBox="0 0 400 260" role="img" aria-label="Grow tent"></svg></div>
+    <p class="status">${status}</p>
+    <div class="grid2">
+      <div class="card">
+        <h2>Read the plant</h2>
+        <h3>${esc(e.tokin?.name || 'Tokin #' + e.tokinIds[0])}</h3>
+        <p class="fx">Grown by ${esc(e.toker?.name || 'Toker #' + e.tokerId)} · ${g.stage} · lights should be ${g.lightsTarget}</p>
+        <div class="levels"><div>Moisture ${word(g.reading.moisture)}</div><div>Nutrients ${word(g.reading.nutrients)}</div></div>
+        <p class="read">${esc(g.signs)}</p>
+        ${open ? `<div class="done">${WIN[win].tasks.map(task).join('')}</div>${doseRow}
+        <div class="row" style="margin-top:10px"><button class="btn primary" id="endBtn">End check-in ›</button>
+        <button class="btn" id="clearBtn">Reset</button></div>` : ''}
+        <p class="fine">Mornings ${g.counts.morning}/7 · Evenings ${g.counts.evening}/7 · Day visits ${g.counts.day}</p>
+      </div>
+      <div class="card">
+        <h2>Grow journal</h2>
+        <ul class="log">${g.log.length ? g.log.map((l) => `<li class="${l.c}">${l.day ? `<i>D${l.day}</i> ` : ''}${esc(l.t)}</li>`).join('') : '<li>Seed planted. Fresh soil, full stock.</li>'}</ul>
+      </div>
+    </div>
+    <p class="help"><b>Morning:</b> water, feed, pest check. <b>Evening:</b> set the light timer, light feed, pest check.
+    <b>Day visits</b> earn bonus points, but hovering can stress her. Too much water or feed is penalised, so read the plant first.
+    Stock has to last the week.</p>`;
+
+  const svg = document.getElementById('svg');
+  svg.innerHTML = sceneSVG(g, e, draft, win, open);
+  const act = (ev) => {
+    const el = ev.target.closest('[data-act]');
+    if (!el) return;
+    const a = el.dataset.act;
+    if (a === 'plant') return toast('Plant: ' + g.signs);
+    if (el.classList.contains('off')) {
+      if (!open) return toast(g.done ? 'This check-in is done.' : 'Lights out — check-ins are 5am to 11pm your time.', true);
+      if (a === 'lights') return toast('The light timer is set in the evening check-in.', true);
+      if (a === 'water' || a === 'feed') return toast('Water and feed happen morning and evening.', true);
+      return;
+    }
+    if (a === 'water' || a === 'feed') pending = pending === a ? null : a;
+    else if (a === 'pest') draft.pest = !draft.pest;
+    else if (a === 'talk') draft.talk = !draft.talk;
+    else if (a === 'lights') draft.lights = draft.lights === '18/6' ? '12/12' : '18/6';
+    else if (a === 'end') return endCheckin();
+    grow(S);
+  };
+  svg.onclick = act;
+  svg.onkeydown = (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); act(ev); } };
+  $app.querySelectorAll('[data-dose]').forEach((b) => (b.onclick = () => {
+    draft[pending] = +b.dataset.dose;
+    pending = null;
+    grow(S);
+  }));
+  const end = document.getElementById('endBtn');
+  if (end) end.onclick = endCheckin;
+  const clr = document.getElementById('clearBtn');
+  if (clr) clr.onclick = () => { draft = blank(); pending = null; grow(S); };
+}
+
+async function endCheckin() {
+  const btn = document.getElementById('endBtn');
+  busy(btn, true, 'Checking in…');
+  try {
+    const r = await api('/checkins', { method: 'POST', body: draft });
+    draft = blank();
+    pending = null;
+    grow(r);
+    toast(r.result.summary, r.result.kind === 'bad');
+  } catch (err) {
+    toast(err.message, true);
+    busy(btn, false);
+  }
 }
 
 // ---------- router ----------
 async function render() {
   if (!store.get('ccc.token')) return landing();
-  $app.innerHTML = `<section class="card"><h2>Loading…</h2></section>`;
+  $app.innerHTML = `<div class="card"><h2>Loading…</h2></div>`;
   let s;
   try {
     s = await api('/state');
   } catch (e) {
     if (!store.get('ccc.token')) return;
-    $app.innerHTML = `<section class="card"><h2>Can't reach the grow room</h2><p>${esc(e.message)}</p>
-      <button class="btn" id="retry">Try again</button></section>`;
+    $app.innerHTML = `<div class="card"><h2>Can't reach the grow room</h2><p>${esc(e.message)}</p>
+      <button class="btn" id="retry">Try again</button></div>`;
     document.getElementById('retry').onclick = () => render();
     return;
   }
   $who.innerHTML = `<span>${short(s.wallet)}</span> <button class="link" id="out">Sign out</button>`;
   document.getElementById('out').onclick = signOut;
-  if (s.entry || s.nextEntry) grow(s);
+  if (s.grow) grow(s);
+  else if (s.nextEntry) booked(s);
   else entryForm(s);
 }
 

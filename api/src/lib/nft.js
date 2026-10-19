@@ -55,4 +55,18 @@ async function owns(kind, wallet, id) {
   return (j.owners || []).some((o) => o.toLowerCase() === wallet.toLowerCase());
 }
 
-module.exports = { ownedBy, owns };
+// Name and image for one NFT.
+async function meta(kind, id) {
+  const c = collection(kind);
+  const u = new URL(`${base(c.network)}/getNFTMetadata`);
+  u.searchParams.set('contractAddress', c.address);
+  u.searchParams.set('tokenId', String(id));
+  const n = await getJson(u);
+  return {
+    id: String(id),
+    name: n.name || n.raw?.metadata?.name || `#${id}`,
+    image: n.image?.cachedUrl || n.image?.thumbnailUrl || n.image?.originalUrl || null
+  };
+}
+
+module.exports = { ownedBy, owns, meta };

@@ -4,7 +4,8 @@ const { db, readItem, query } = require('../lib/db');
 const { HttpError, handler } = require('../lib/http');
 const { ownedBy, owns } = require('../lib/nft');
 const { isValidTz, weekId, nextWeekId, gameDay, windowAt } = require('../lib/time');
-const { entryFor, checkinsFor, stateFor } = require('../lib/game');
+const { entryFor, checkinsFor, stateFor, plantOf, withImages } = require('../lib/game');
+const { newPlant, applyCheckin } = require('../lib/plant');
 const { MAX_TOKINS_PER_ENTRY, ALLOW_CURRENT_WEEK_ENTRY, WINDOWS } = require('../lib/config');
 
 app.http('health', {
@@ -59,7 +60,7 @@ app.http('moveEntryToCurrent', {
     if (!e) throw new HttpError(400, "You don't have an entry for next week.");
     await assertFree(c, week, e.tokerId, e.tokinIds);
     const { _rid, _self, _etag, _attachments, _ts, ...rest } = e;
-    await c.entries.items.create({ ...rest, id: crypto.randomUUID(), week, movedFrom: e.week });
+    await c.entries.items.create({ ...rest, id: crypto.randomUUID(), week, movedFrom: e.week, plant: newPlant(new Date()) });
     await c.entries.item(e.id, e.week).delete();
     return stateFor(wallet);
   })
@@ -103,8 +104,13 @@ app.http('enter', {
       if (!(await owns('tokin', wallet, t))) throw new HttpError(403, `This wallet doesn't own Tokin #${t}.`);
     }
 
-    const entry = { id: crypto.randomUUID(), week, wallet, tokerId, tokinIds, timezone: player.timezone, createdAt: new Date().toISOString() };
+    const now = new Date();
+    const entry = {
+      id: crypto.randomUUID(), week, wallet, tokerId, tokinIds, timezone: player.timezone,
+      createdAt: now.toISOString(), plant: newPlant(now)
+    };
     await c.entries.items.create(entry);
+    await withImages(entry);
     for (const t of tokinIds) {
       await c.pairings.items.create({ id: `${tokerId}:${t}`, tokerId, tokinId: t, week, wallet });
     }
@@ -119,7 +125,7 @@ app.http('checkin', {
   route: 'checkins',
   methods: ['POST'],
   authLevel: 'anonymous',
-  handler: handler(async ({ wallet }) => {
+  handler: handler(async ({ wallet, body }) => {
     const c = await db();
     const player = await readItem(c.players, wallet, wallet);
     const entry = player && (await entryFor(wallet, weekId()));
@@ -143,7 +149,32 @@ app.http('checkin', {
         throw new HttpError(409, `All 7 ${w.window} check-ins are done this week.`);
     }
 
+    // What the player did this check-in.
+    const dose = (v) => (Number.isInteger(v) && v >= 0 && v <= 5 ? v : 0);
+    const actions = {
+      water: dose(body.water),
+      feed: dose(body.feed),
+      pest: body.pest === true,
+      talk: body.talk === true,
+      lights: ['18/6', '12/12'].includes(body.lights) ? body.lights : null
+    };
+    if (w.window === 'day' && (actions.water || actions.feed))
+      throw new HttpError(400, 'Water and feed happen in the morning and evening. Day visits are for pest checks and a chat.');
+
+    const plant = plantOf(entry, now);
+    let result;
+    try {
+      result = applyCheckin(plant, entry.id, now, w.window, actions);
+    } catch (e) {
+      throw new HttpError(400, e.message);
+    }
+    entry.plant = plant;
+    await c.entries.items.upsert(entry);
+
     await c.checkins.items.create({
+      actions,
+      points: result.pts,
+      penalty: result.pen,
       id: crypto.randomUUID(),
       entryId: entry.id,
       wallet,
@@ -153,6 +184,6 @@ app.http('checkin', {
       gameDay: gameDay(now),
       at: now.toISOString()
     });
-    return stateFor(wallet);
+    return { ...(await stateFor(wallet)), result };
   })
 });

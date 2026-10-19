@@ -20,6 +20,12 @@ Function App settings `COSMOS_CONN`, `ALCHEMY_KEY`, `OPENSEA_KEY` are Key Vault 
 ## GitHub secrets
 - `AZURE_CREDENTIALS` — service principal `ccc-game-github` (Contributor on ccc-game-rg), used by both workflows
 
+## Build 2 (19 Oct 2026)
+Grow room (tent scene with Toker + Tokin images), 1 Tokin per entry, server-side plant (moisture, nutrients,
+health, size, pests) ticking hourly, read-the-plant signs, check-in actions (water/feed dose 1–5, pest check,
+talk, light timer) scored per v1.3, weekly water/feed stock, day-visit hover risk, last-week summary.
+Tuning in `api/src/lib/config.js` (PLANT).
+
 ## Build 1 (Oct 2026)
 Wallet sign-in (signed message, no gas), Toker/Tokin ownership check via Alchemy, entry rules
 (1 Toker + up to 3 Tokins, permanent pairing rule, time zone locked on first entry), morning/evening/day
