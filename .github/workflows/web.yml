@@ -16,7 +16,7 @@ jobs:
           node-version: 20
       - name: Build
         working-directory: web
-        run: npm ci && npm run build
+        run: npm ci && npm test && npm run build
       - uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
